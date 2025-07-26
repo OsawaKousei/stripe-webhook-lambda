@@ -1,14 +1,15 @@
 [English](./README-en.md)
 
-# AWS Lambda テンプレート
+# Stripe Webhook AWS Lambda
 
-このリポジトリは、AWS Lambda アプリケーションのサンプルプロジェクトです。TypeScript で開発され、Docker を使用してローカル開発環境をセットアップし、AWS Lambda にデプロイするための構成が含まれています。package.json のプロジェクト名、docker compose におけるサービス・コンテナ名は github action により、作成時に自動でレポジトリ名に初期化されます。
+このリポジトリは、Stripe Webhookを処理するAWS Lambda関数のプロジェクトです。TypeScript で開発され、Stripe の決済完了イベントを受信してクレジット追加処理を行います。
 
 ## 目次
 
 - [前提条件](#前提条件)
 - [プロジェクト構成](#プロジェクト構成)
 - [セットアップ手順](#セットアップ手順)
+- [環境変数](#環境変数)
 - [ローカル開発環境](#ローカル開発環境)
 - [ビルド](#ビルド)
 - [デプロイ](#デプロイ)
@@ -19,13 +20,14 @@
 
 - Docker と Docker Compose
 - AWS アカウント（デプロイ時に必要）
+- StripeアカウントとAPIキー
 
 ## プロジェクト構成
 
 ```
-aws-lambda-study/
+stripe-webhook-lambda/
 ├── function/               # Lambda 関数のソースコード
-│   └── function.ts         # サンプル Hello World 関数
+│   └── function.ts         # Stripe Webhook処理関数
 ├── build/                  # デプロイ用ファイル出力ディレクトリ
 ├── Dockerfile              # Docker イメージ定義
 ├── docker-compose.yaml     # ローカル開発環境の構成
@@ -41,35 +43,33 @@ aws-lambda-study/
 
 ```bash
 git clone <repository-url>
-cd aws-lambda-template
+cd stripe-webhook-lambda
 ```
 
 2. 環境変数を設定します
 
 `.env` ファイルをプロジェクトのルートディレクトリに作成し、必要な環境変数を設定します：
 
-## ローカル開発環境
+## 環境変数
 
-Docker Compose を使用してローカル開発環境を起動します：
+以下の環境変数を `.env` ファイルに設定してください：
 
 ```bash
-docker compose up --build
+# Stripe設定
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# バックエンドサーバー設定
+BACKEND_BASE_URL=https://your-backend-api.com
+BACKEND_API_KEY=your-backend-api-key
 ```
 
-Lambda 関数をローカルでテストするには、テストスクリプトを実行します：
+## 機能
 
-```bash
-bash ./test/test.bash
-```
-
-## ビルド
-
-### TypeScript のコンパイル
-
-TypeScript のコードをコンパイルするには：
-
-```bash
-npm run build
+- **Stripe Webhook署名検証**: セキュリティのためのWebhook署名検証
+- **決済完了イベント処理**: `checkout.session.completed` イベントの処理
+- **クレジット追加**: バックエンドAPIへのクレジット追加リクエスト
+- **エラーハンドリング**: 包括的なエラー処理とログ出力
 ```
 
 これにより、`functions` ディレクトリ内の TypeScript ファイルがコンパイルされ、`app` ディレクトリに JavaScript ファイルが生成されます。
