@@ -62,7 +62,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     const body = await event.body;
     const signature = event.headers["stripe-signature"];
 
-    console.log("Stripe signature:", signature);
+    console.log("Successfully retrieved body and signature from event");
 
     let stripeEvent: Stripe.Event;
     try {
@@ -71,7 +71,6 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
         signature!,
         process.env.STRIPE_WEBHOOK_SECRET!
       );
-      console.log("Stripe event constructed successfully:", stripeEvent);
     } catch (err) {
       console.error("Error constructing Stripe event:", err);
       return createErrorResponse(400, "Invalid Stripe signature");
@@ -85,8 +84,6 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       const amount = session.amount_total || 0;
       const stripeSessionId = session.id;
       console.log("Customer ID:", customerId);
-      console.log("Customer Email:", customerEmail);
-      console.log("Amount:", amount);
       console.log("Stripe Session ID:", stripeSessionId);
       // バックエンドAPIにリクエストを送信
     }
