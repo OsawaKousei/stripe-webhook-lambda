@@ -80,12 +80,40 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     if (stripeEvent.type === "checkout.session.completed") {
       console.log("Checkout session completed:", session);
       const customerId = session.customer as string;
-      const customerEmail = session.customer_email || null;
-      const amount = session.amount_total || 0;
       const stripeSessionId = session.id;
       console.log("Customer ID:", customerId);
       console.log("Stripe Session ID:", stripeSessionId);
-      // バックエンドAPIにリクエストを送信
+
+      // セッション詳細を取得して購入された商品IDを特定
+      try {
+        const sessionWithLineItems = await stripe.checkout.sessions.retrieve(
+          stripeSessionId,
+          {
+            expand: ["line_items", "line_items.data.price.product"],
+          }
+        );
+
+        const purchasedProductIds: string[] = [];
+
+        if (sessionWithLineItems.line_items?.data) {
+          for (const lineItem of sessionWithLineItems.line_items.data) {
+            if (lineItem.price && typeof lineItem.price.product === "object") {
+              const product = lineItem.price.product as Stripe.Product;
+              purchasedProductIds.push(product.id);
+              console.log(
+                `Purchased product ID: ${product.id}, name: ${product.name}`
+              );
+            }
+          }
+        }
+
+        console.log("All purchased product IDs:", purchasedProductIds);
+
+        // バックエンドAPIにリクエストを送信
+      } catch (productRetrievalError) {
+        console.error("Error retrieving purchased products:", productRetrievalError);
+        return createErrorResponse(500, "Failed to retrieve purchased products");
+      }
     }
 
     console.log("Webhook processing completed");
