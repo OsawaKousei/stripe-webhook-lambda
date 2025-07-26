@@ -1,8 +1,8 @@
 version: "3.6"
 
 services:
-  {{repository_name}}-lambda-service:
-    container_name: {{repository_name}}-lambda-service
+  stripe-webhook-lambda-lambda-service:
+    container_name: stripe-webhook-lambda-lambda-service
     build: .
     ports:
       - "9000:8080"

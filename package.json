@@ -1,5 +1,5 @@
 {
-  "name": "{{repository_name}}",
+  "name": "stripe-webhook-lambda",
   "version": "1.0.0",
   "dependencies": {
     "dotenv": "^16.0.3"
