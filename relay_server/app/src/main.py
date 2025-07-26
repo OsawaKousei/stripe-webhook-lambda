@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, Response
 
 # LambdaコンテナのRIE（実行環境）が待機しているURL
 # ポート番号はご自身の環境に合わせて変更してください
-LAMBDA_URL = "http://stripe-webhook-lambda-lambda-service:8080/2015-03-31/functions/function/invocations"
+LAMBDA_URL = "http://ai-report-app-stripe-webhook-lambda-service:8080/2015-03-31/functions/function/invocations"
 
 # FastAPIアプリケーションを初期化
 app = FastAPI()
