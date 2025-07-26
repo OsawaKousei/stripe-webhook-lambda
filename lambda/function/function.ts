@@ -6,7 +6,7 @@ import {
   LambdaResponse,
   ErrorResponse,
   SuccessResponse,
-  StripeWebhookEvent,
+  CreditPurchaseRequest,
 } from "./types";
 
 // エラーレスポンスを生成するヘルパー関数
@@ -33,14 +33,20 @@ const createSuccessResponse = (message?: string): LambdaResponse => {
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   try {
-    console.log("Received event:", JSON.stringify(event, null, 2));
+    console.log("Event received");
+
+    // 環境変数を変数に保持
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const backendBaseUrl = process.env.BACKEND_BASE_URL;
+    const backendApiKey = process.env.BACKEND_API_KEY;
 
     // 環境変数の存在チェック
     const requiredEnvVars = {
-      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-      STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-      BACKEND_BASE_URL: process.env.BACKEND_BASE_URL,
-      BACKEND_API_KEY: process.env.BACKEND_API_KEY,
+      STRIPE_SECRET_KEY: stripeSecretKey,
+      STRIPE_WEBHOOK_SECRET: stripeWebhookSecret,
+      BACKEND_BASE_URL: backendBaseUrl,
+      BACKEND_API_KEY: backendApiKey,
     };
 
     for (const [key, value] of Object.entries(requiredEnvVars)) {
@@ -53,7 +59,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     console.log("All required environment variables are set");
 
     // Stripeインスタンスをリクエスト毎に作成
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    const stripe = new Stripe(stripeSecretKey!, {
       apiVersion: "2025-06-30.basil",
     });
 
@@ -69,7 +75,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       stripeEvent = stripe.webhooks.constructEvent(
         body,
         signature!,
-        process.env.STRIPE_WEBHOOK_SECRET!
+        stripeWebhookSecret!
       );
     } catch (err) {
       console.error("Error constructing Stripe event:", err);
@@ -109,7 +115,36 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 
         console.log("All purchased product IDs:", purchasedProductIds);
 
-        // バックエンドAPIにリクエストを送信
+        // バックエンドAPIにリクエストを送信（各商品に対して個別にリクエスト）
+        try {
+          for (const productId of purchasedProductIds) {
+            const requestBody: CreditPurchaseRequest = {
+              product_id: productId,
+              customer_id: customerId,
+            };
+
+            const apiResponse = await fetch(`${backendBaseUrl}/subscription/purchase-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Webhook-Secret': backendApiKey!,
+              },
+              body: JSON.stringify(requestBody),
+            });
+
+            if (!apiResponse.ok) {
+              const errorText = await apiResponse.text();
+              console.error(`Backend API error for product ${productId}: ${apiResponse.status} - ${errorText}`);
+              return createErrorResponse(500, `Failed to notify backend of purchase completion for product ${productId}`);
+            }
+
+            const responseData = await apiResponse.json();
+            console.log(`Successfully notified backend for product ${productId}:`, responseData);
+          }
+        } catch (backendApiError) {
+          console.error("Error calling backend API:", backendApiError);
+          return createErrorResponse(500, "Failed to communicate with backend");
+        }
       } catch (productRetrievalError) {
         console.error("Error retrieving purchased products:", productRetrievalError);
         return createErrorResponse(500, "Failed to retrieve purchased products");
