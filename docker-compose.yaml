@@ -1,10 +1,33 @@
 version: "3.6"
 
+volumes:
+  stripe-webhook-lambda-lambda-service:
+
 services:
   stripe-webhook-lambda-lambda-service:
     container_name: stripe-webhook-lambda-lambda-service
-    build: .
-    ports:
-      - "9000:8080"
+    build:
+      context: ./lambda
+      dockerfile: Dockerfile
     env_file:
-      - .env
+      - ./lambda/.env
+    ports:
+      - "9010:8080"
+    networks:
+      - docker-compose-stripe_default
+
+  relay-server-service:
+    build:
+      context: ./relay_server
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./relay_server/app:/app
+      - stripe-webhook-lambda-lambda-service:/app/.venv
+    ports:
+      - "8010:8000"
+    networks:
+      - docker-compose-stripe_default
+
+networks:
+  docker-compose-stripe_default:
+    driver: bridge

@@ -1,101 +1,88 @@
 [日本語](./README.md)
 
-# AWS Lambda Template
+# Stripe Webhook Lambda
 
-This repository is a sample project for an AWS Lambda application. It is developed in TypeScript and includes configurations for setting up a local development environment using Docker and deploying to AWS Lambda. The project name in `package.json` and the service/container names in Docker Compose are automatically initialized to the repository name upon creation by a GitHub Action.
+This project provides an AWS Lambda function to handle Stripe Webhook events (specifically `checkout.session.completed`). To facilitate local testing, it includes a FastAPI relay server that forwards requests from the Stripe CLI to a Lambda container, mimicking the behavior of API Gateway.
 
-## Table of Contents
+## Architecture
 
-- [Prerequisites](#prerequisites)
-- [Project Structure](#project-structure)
-- [Setup Instructions](#setup-instructions)
-- [Local Development Environment](#local-development-environment)
-- [Build](#build)
-- [Deployment](#deployment)
+1.  **Stripe CLI**: Uses the `stripe listen` command to forward events occurring on Stripe to the local machine.
+2.  **FastAPI Relay Server**: Receives requests at `localhost:8010`. This server is responsible for converting HTTP requests from Stripe into the JSON event format expected by Lambda. This emulates the processing typically done by AWS API Gateway.
+3.  **Lambda Function**: The Lambda container running at `localhost:9010` receives the converted event from the relay server. This function verifies the Stripe signature, processes the event, and finally sends a notification to the backend system (this part is not yet implemented).
+
+This setup allows for complete testing of the Lambda function in a local environment without actually deploying an API Gateway.
 
 ## Prerequisites
 
-Ensure you have the following tools installed:
+*   Docker
+*   Docker Compose
+*   Stripe CLI
+*   Node.js (for Lambda function development)
+*   Python (for relay server development)
 
-- Docker and Docker Compose
-- AWS Account (required for deployment)
+## Setup
 
-## Project Structure
+1.  **Clone the repository:**
+    ```bash
+    git clone git@github.com:OsawaKousei/stripe-webhook-lambda.git
+    cd stripe-webhook-lambda
+    ```
 
-```
-aws-lambda-study/
-├── function/               # Source code for the Lambda function
-│   └── function.ts         # Sample Hello World function
-├── build/                  # Output directory for deployment files
-├── Dockerfile              # Docker image definition
-├── docker-compose.yaml     # Configuration for the local development environment
-├── package.json            # Project dependencies
-├── tsconfig.json           # TypeScript configuration
-├── .env.template           # Environment variable template
-└── .env                    # Environment variables (create this yourself)
-```
+2.  **Set up environment variables:**
+    Copy `lambda/.env.template` to create `lambda/.env` and set the required values.
+    ```bash
+    cp lambda/.env.template lambda/.env
+    ```
+    Edit the `lambda/.env` file.
+    ```
+    STRIPE_SECRET_KEY=sk_test_...
+    STRIPE_WEBHOOK_SECRET=whsec_...
+    BACKEND_BASE_URL=http://your-backend-api.com
+    BACKEND_API_KEY=your-backend-api-key
+    ```
+    For `STRIPE_WEBHOOK_SECRET`, use the value displayed when you run the `stripe listen` command described below.
 
-## Setup Instructions
+## How to Run
 
-1. Clone the repository
+1.  **Start the Docker containers:**
+    In the project root directory, run the following command to start the Lambda function and the relay server.
+    ```bash
+    docker-compose up --build
+    ```
 
-```bash
-git clone <repository-url>
-cd aws-lambda-template
-```
+2.  **Forward Stripe events:**
+    Open another terminal and use the Stripe CLI to forward events to the relay server.
+    ```bash
+    stripe listen --forward-to http://localhost:8010/relay
+    ```
+    When you run this command, the Webhook signing key (`whsec_...`) will be displayed. Copy this value and set it as `STRIPE_WEBHOOK_SECRET` in your `lambda/.env` file. After changing the setting, you need to restart the containers by running `docker-compose up --build` again.
 
-2. Set up environment variables
+3.  **Trigger a test event:**
+    Use the Stripe CLI to trigger a test checkout session completed event.
+    ```bash
+    stripe trigger checkout.session.completed
+    ```
 
-Create a `.env` file in the project's root directory and set the necessary environment variables:
-
-## Local Development Environment
-
-Use Docker Compose to start the local development environment:
-
-```bash
-docker compose up --build
-```
-
-To test the Lambda function locally, run the test script:
-
-```bash
-bash ./test/test.bash
-```
-
-## Build
-
-### Compiling TypeScript
-
-To compile the TypeScript code:
-
-```bash
-npm run build
-```
-
-This will compile the TypeScript files in the `functions` directory and generate JavaScript files in the `app` directory.
+Now, the request will flow from Stripe → Stripe CLI → FastAPI Relay Server → Lambda Function, and the processing status will be output in the container logs.
 
 ### Creating a Deployment Package
 
-If you haven't created the `build` directory, please create it: `mkdir build`
+If you haven't created a `build` directory, please create one.
+
+```bash
+mkdir build
+```
+
+Next, start the containers and copy the built artifacts.
 
 ```bash
 docker compose up -d
-docker cp lambda-service:/tmp/lambda.zip ./build/lambda.zip
-docker cp lambda-service:/tmp/index.js ./build/index.js
+docker cp stripe-webhook-lambda-lambda-service:/tmp/lambda.zip ./build/lambda.zip
+docker cp stripe-webhook-lambda-lambda-service:/tmp/index.js ./build/index.js
 ```
 
 This script performs the following actions:
 
-1. Compiles the TypeScript code
-2. Copies the ZIP deployment package to the `build/` directory
-3. (Optional) Copies the transpiled .js file to the `build/` directory
-
-## Deployment
-
-### Deploying using the AWS Management Console
-
-1. Log in to the [AWS Management Console](https://console.aws.amazon.com/)
-2. Navigate to the Lambda service
-3. Click "Create function" and fill in the required information
-4. Select "Upload a .zip file" and upload `build/lambda.zip`
-5. Set environment variables (if necessary)
+1.  Compiles the TypeScript code inside a Docker container.
+2.  Copies the deployment ZIP package (`lambda.zip`) from the container to the host's `build/` directory.
+3.  (Optional) Copies the transpiled JavaScript file (`index.js`) to the `build/` directory as well. This is useful for inspecting the contents before deployment.
