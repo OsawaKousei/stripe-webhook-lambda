@@ -3,8 +3,8 @@ version: "3.6"
 services:
   stripe-webhook-lambda-lambda-service:
     container_name: stripe-webhook-lambda-lambda-service
-    build: .
+    build: ./lambda
     ports:
-      - "9000:8080"
+      - "9010:8080"
     env_file:
-      - .env
+      - ./lambda/.env
