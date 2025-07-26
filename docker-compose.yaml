@@ -1,0 +1,10 @@
+version: "3.6"
+
+services:
+  {{repository_name}}-lambda-service:
+    container_name: {{repository_name}}-lambda-service
+    build: .
+    ports:
+      - "9000:8080"
+    env_file:
+      - .env

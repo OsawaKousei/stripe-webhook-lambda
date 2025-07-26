@@ -1,0 +1,8 @@
+# env
+.env
+
+# build
+build/
+
+# settings
+.vscode/

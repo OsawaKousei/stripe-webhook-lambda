@@ -1,0 +1,14 @@
+{
+  "name": "{{repository_name}}",
+  "version": "1.0.0",
+  "dependencies": {
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0",
+    "@types/node": "^18.0.0"
+  },
+  "scripts": {
+    "build": "tsc"
+  }
+}
