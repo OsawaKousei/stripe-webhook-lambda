@@ -31,7 +31,7 @@ const createSuccessResponse = (message?: string): LambdaResponse => {
   };
 };
 
-export const handler = async (event: Request): Promise<LambdaResponse> => {
+export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   try {
     console.log("Received event:", JSON.stringify(event, null, 2));
 
@@ -59,8 +59,8 @@ export const handler = async (event: Request): Promise<LambdaResponse> => {
 
     console.log("Stripe instance created successfully");
 
-    const body = await event.text();
-    const signature = event.headers.get("stripe-signature");
+    const body = await event.body;
+    const signature = event.headers["stripe-signature"];
 
     console.log("Stripe signature:", signature);
 
