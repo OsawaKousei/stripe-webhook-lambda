@@ -7,6 +7,21 @@ export interface LambdaEvent {
   body: string;
 }
 
+// Stripe Webhook Event型定義
+export interface StripeWebhookEvent {
+  id: string;
+  object: string;
+  type: string;
+  data: {
+    object: {
+      id: string;
+      customer?: string;
+      customer_email?: string | null;
+      [key: string]: any;
+    };
+  };
+}
+
 // AWS Lambda Response型定義
 export interface LambdaResponse {
   statusCode: number;

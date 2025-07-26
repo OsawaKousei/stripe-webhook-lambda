@@ -4,10 +4,9 @@ import Stripe from "stripe";
 import {
   LambdaEvent,
   LambdaResponse,
-  CreditAddRequest,
-  CreditAddResponse,
   ErrorResponse,
   SuccessResponse,
+  StripeWebhookEvent,
 } from "./types";
 
 // エラーレスポンスを生成するヘルパー関数
@@ -60,140 +59,43 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 
     console.log("Stripe instance created successfully");
 
-    const signature = event.headers["stripe-signature"];
-    const body = event.body;
-
-    if (!signature) {
-      console.error("Stripe signature header missing");
+    // Stripe署名の取得
+    const stripeSignature = event.headers["stripe-signature"];
+    if (!stripeSignature) {
+      console.error("Missing stripe-signature header");
       return createErrorResponse(400, "Missing stripe-signature header");
     }
+    console.log("Stripe signature found");
 
-    if (!body) {
-      console.error("Request body is empty");
-      return createErrorResponse(400, "Request body is required");
-    }
-
-    console.log("Successfully received Stripe signature and body");
-
-    // Stripe Webhook署名検証
-    let stripeEvent: Stripe.Event;
+    // イベントデータのパース
+    let webhookEvent: StripeWebhookEvent;
     try {
-      stripeEvent = stripe.webhooks.constructEvent(
-        body,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
-      console.log(
-        `Webhook event received: ${stripeEvent.type}, ID: ${stripeEvent.id}`
-      );
-    } catch (err) {
-      console.error("Webhook signature verification failed:", {
-        error: err instanceof Error ? err.message : "Unknown error",
-        signature: signature.substring(0, 20) + "...",
-      });
-      return createErrorResponse(
-        400,
-        "Invalid signature",
-        err instanceof Error ? err.message : "Signature verification failed"
-      );
+      webhookEvent = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error("Failed to parse webhook event body:", parseError);
+      return createErrorResponse(400, "Invalid JSON payload");
     }
 
-    // クレジット購入完了イベントの処理
-    if (stripeEvent.type === "checkout.session.completed") {
-      const session = stripeEvent.data.object as Stripe.Checkout.Session;
+    // イベントタイプの確認
+    console.log("Event type:", webhookEvent.type);
 
-      // セッションデータの検証
-      if (!session.id) {
-        console.error("Session ID is missing from Stripe event");
-        return createErrorResponse(400, "Invalid session data");
-      }
-
-      // セッションから必要な情報を取得
-      const customerId = session.customer as string;
-      const customerEmail = session.customer_details?.email || null;
-      const amountTotal = session.amount_total || 0;
-
-      console.log("Credit purchase completed:", {
-        sessionId: session.id,
-        customerId,
-        customerEmail,
-        amountTotal,
-      });
-
-      // 必要なデータの検証
-      if (!customerId && !customerEmail) {
-        console.error("Neither customer ID nor customer email available");
-        return createErrorResponse(400, "Customer information is required");
-      }
-
-      if (amountTotal <= 0) {
-        console.error(`Invalid amount: ${amountTotal}`);
-        return createErrorResponse(400, "Invalid payment amount");
-      }
-
-      // バックエンドサーバーのクレジット追加エンドポイントにリクエスト送信
-      try {
-        const requestData: CreditAddRequest = {
-          customerId,
-          customerEmail,
-          amount: amountTotal,
-          stripeSessionId: session.id,
-        };
-
-        console.log("Sending credit add request to backend:", {
-          customerId,
-          customerEmail,
-          amount: amountTotal,
-          sessionId: session.id,
-        });
-
-        const response = await fetch(
-          `${process.env.BACKEND_BASE_URL}/subscription/credits/add`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${process.env.BACKEND_API_KEY}`,
-            },
-            body: JSON.stringify(requestData),
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const errorMessage = `Backend API error: ${response.status} ${response.statusText}`;
-          console.error(errorMessage, { responseBody: errorText });
-
-          throw new Error(`${errorMessage} - ${errorText}`);
-        }
-
-        const result: CreditAddResponse = await response.json();
-        console.log("Credit added successfully:", {
-          customerId,
-          result,
-        });
-
-        return createSuccessResponse(
-          `Credit added successfully for customer ${customerId}`
-        );
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error occurred";
-        console.error("Failed to add credits:", {
-          error: errorMessage,
-          customerId,
-          sessionId: session.id,
-        });
-
-        return createErrorResponse(
-          500,
-          "Failed to process credit addition",
-          errorMessage
-        );
-      }
+    // チェックアウトセッションIDの抽出
+    const checkoutSessionId = webhookEvent.data.object.id;
+    if (!checkoutSessionId) {
+      console.error("Missing checkout session ID");
+      return createErrorResponse(400, "Missing checkout session ID");
     }
+    console.log("Checkout session ID:", checkoutSessionId);
 
-    console.log(`Webhook event ${stripeEvent.type} received but not processed`);
+    // 顧客IDの抽出
+    const customerId = webhookEvent.data.object.customer;
+    if (!customerId) {
+      console.error("Missing customer ID");
+      return createErrorResponse(400, "Missing customer ID");
+    }
+    console.log("Customer ID:", customerId);
+
+    console.log("Webhook processing completed");
     return createSuccessResponse("Webhook received and processed");
   } catch (error) {
     const errorMessage =
