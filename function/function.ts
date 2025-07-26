@@ -31,7 +31,7 @@ const createSuccessResponse = (message?: string): LambdaResponse => {
   };
 };
 
-export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
+export const handler = async (event: Request): Promise<LambdaResponse> => {
   try {
     console.log("Received event:", JSON.stringify(event, null, 2));
 
@@ -59,54 +59,37 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 
     console.log("Stripe instance created successfully");
 
-    // Stripe署名の取得
-    const stripeSignature = event.headers["stripe-signature"];
-    if (!stripeSignature) {
-      console.error("Missing stripe-signature header");
-      return createErrorResponse(400, "Missing stripe-signature header");
-    }
-    console.log("Stripe signature found");
+    const body = await event.text();
+    const signature = event.headers.get("stripe-signature");
 
-    // イベントデータのパース
-    let webhookEvent: StripeWebhookEvent;
+    console.log("Stripe signature:", signature);
+
+    let stripeEvent: Stripe.Event;
     try {
-      webhookEvent = JSON.parse(event.body);
-    } catch (parseError) {
-      console.error(
-        "Failed to parse webhook event body:",
-        JSON.stringify(
-          {
-            error:
-              parseError instanceof Error
-                ? parseError.message
-                : String(parseError),
-            stack: parseError instanceof Error ? parseError.stack : undefined,
-          },
-          null,
-          2
-        )
+      stripeEvent = stripe.webhooks.constructEvent(
+        body,
+        signature!,
+        process.env.STRIPE_WEBHOOK_SECRET!
       );
-      return createErrorResponse(400, "Invalid JSON payload");
+      console.log("Stripe event constructed successfully:", stripeEvent);
+    } catch (err) {
+      console.error("Error constructing Stripe event:", err);
+      return createErrorResponse(400, "Invalid Stripe signature");
     }
 
-    // イベントタイプの確認
-    console.log("Event type:", webhookEvent.type);
-
-    // チェックアウトセッションIDの抽出
-    const checkoutSessionId = webhookEvent.data.object.id;
-    if (!checkoutSessionId) {
-      console.error("Missing checkout session ID");
-      return createErrorResponse(400, "Missing checkout session ID");
+    const session = stripeEvent.data.object as Stripe.Checkout.Session;
+    if (stripeEvent.type === "checkout.session.completed") {
+      console.log("Checkout session completed:", session);
+      const customerId = session.customer as string;
+      const customerEmail = session.customer_email || null;
+      const amount = session.amount_total || 0;
+      const stripeSessionId = session.id;
+      console.log("Customer ID:", customerId);
+      console.log("Customer Email:", customerEmail);
+      console.log("Amount:", amount);
+      console.log("Stripe Session ID:", stripeSessionId);
+      // バックエンドAPIにリクエストを送信
     }
-    console.log("Checkout session ID:", checkoutSessionId);
-
-    // 顧客IDの抽出
-    const customerId = webhookEvent.data.object.customer;
-    if (!customerId) {
-      console.error("Missing customer ID");
-      return createErrorResponse(400, "Missing customer ID");
-    }
-    console.log("Customer ID:", customerId);
 
     console.log("Webhook processing completed");
     return createSuccessResponse("Webhook received and processed");
