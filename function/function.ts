@@ -72,7 +72,20 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     try {
       webhookEvent = JSON.parse(event.body);
     } catch (parseError) {
-      console.error("Failed to parse webhook event body:", parseError);
+      console.error(
+        "Failed to parse webhook event body:",
+        JSON.stringify(
+          {
+            error:
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError),
+            stack: parseError instanceof Error ? parseError.stack : undefined,
+          },
+          null,
+          2
+        )
+      );
       return createErrorResponse(400, "Invalid JSON payload");
     }
 
@@ -98,12 +111,21 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     console.log("Webhook processing completed");
     return createSuccessResponse("Webhook received and processed");
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-    console.error("Webhook processing error:", {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error(
+      "Webhook processing error:",
+      JSON.stringify(
+        {
+          message: errorMessage,
+          stack: errorStack,
+          type: error instanceof Error ? error.constructor.name : typeof error,
+        },
+        null,
+        2
+      )
+    );
 
     return createErrorResponse(500, "Internal server error", errorMessage);
   }
