@@ -11,6 +11,7 @@ LAMBDA_URL = "http://stripe-webhook-lambda-lambda-service:8080/2015-03-31/functi
 # FastAPIアプリケーションを初期化
 app = FastAPI()
 
+
 @app.post("/relay")
 async def relay_webhook(request: Request):
     """
@@ -23,9 +24,6 @@ async def relay_webhook(request: Request):
     raw_body_str = raw_body_bytes.decode('utf-8')
 
     print("--- Received by FastAPI Relay Server ---")
-    print(f"Stripe-Signature: {stripe_signature}")
-    print(f"Body: {raw_body_str[:100]}...") # ボディの先頭を表示
-    print("--------------------------------------")
 
     # 2. Lambdaに渡すためのイベントペイロードを作成
     lambda_event_payload = {
@@ -49,7 +47,6 @@ async def relay_webhook(request: Request):
                 timeout=30.0  # タイムアウトを30秒に設定
             )
             print(f"Lambda response status: {lambda_response.status_code}")
-            
             # 4. Lambdaからのレスポンスをそのままクライアント(stripe listen)に返す
             return Response(
                 content=lambda_response.content,
